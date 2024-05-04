@@ -12,3 +12,7 @@ And this api for retrieving the city coordinations ```https://geocoding-api.open
 - Search for weather in other cities.
 - Display current weather conditions (temperature, humidity, wind speed, etc.).
 - Responsive UI design.
+
+![image](https://github.com/KayZou/NativeWeather/assets/82322986/e2a1f01f-bb2c-4453-84ab-47ca7a9d6306)
+
+![image](https://github.com/KayZou/NativeWeather/assets/82322986/d1740908-602c-43bd-8074-0be0f429acfc)
