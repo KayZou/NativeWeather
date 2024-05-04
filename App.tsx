@@ -1,118 +1,148 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
+  Alert,
+  ImageBackground,
+  PermissionsAndroid,
   StyleSheet,
-  Text,
-  useColorScheme,
   View,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import Geolocation from '@react-native-community/geolocation';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+import {MeteoApi} from './api/weather';
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+import Home from './pages/Home';
+import Forecasts from './pages/Forecasts';
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+const Stack = createNativeStackNavigator();
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+const navTheme = {
+  colors: {
+    background: 'transparent',
+  },
+};
+
+function App() {
+  const requestLocationPermission = async () => {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'GeoLocation permission',
+          message:
+            'We need access to your geolocation ' +
+            'so you can check teh weather.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        },
+      );
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('You can use the location');
+        getCurrentUserLocation();
+      } else {
+        console.log('Location permission denied');
+      }
+    } catch (err) {
+      console.warn(err);
+    }
   };
 
+  const [location, setLocation] = useState(null);
+  const [weather, setWeather] = useState(null);
+  const [city, setCity] = useState(null);
+
+  const getCurrentUserLocation = () => {
+    Geolocation.getCurrentPosition(
+      position => {
+        const {latitude, longitude} = position.coords;
+        setLocation({latitude, longitude});
+        // console.log('lat:', latitude, 'long:', longitude);
+      },
+      error => Alert.alert('Error', error.message || error),
+      {enableHighAccuracy: true, timeout: 15000, maximumAge: 10000},
+    );
+  };
+
+  async function fetchWeatherByLocation() {
+    const res = await MeteoApi.getWeather(
+      location.latitude,
+      location.longitude,
+    );
+    setWeather(res);
+    // console.log(res);
+  }
+
+  async function getCityByLocation() {
+    const data = await MeteoApi.getCity(location.latitude, location.longitude);
+    setCity(data.address.city);
+    // console.log('city:', city);
+  }
+
+  async function fetchCityByCords(city) {
+    setCity(city);
+    const {latitude, longitude} = await MeteoApi.fetchCityByName(city);
+    setLocation({latitude: latitude, longitude: longitude});
+  }
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  useEffect(() => {
+    if (location) {
+      fetchWeatherByLocation();
+      getCityByLocation();
+    }
+  }, [location]);
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <>
+      <NavigationContainer theme={navTheme}>
+        <ImageBackground
+          source={{
+            uri: 'https://images.unsplash.com/photo-1593978301851-40c1849d47d4?q=80&w=2127&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+          }}
+          style={styles.image}
+          imageStyle={{opacity: 0.6}}>
+          {weather && (
+            <Stack.Navigator
+              initialRouteName="Home"
+              screenOptions={{headerShown: false, animation: 'fade'}}>
+              <Stack.Screen name="Home">
+                {props => (
+                  <Home
+                    {...props}
+                    weather={weather}
+                    city={city}
+                    onSubmitSearch={fetchCityByCords}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Forecasts" component={Forecasts} />
+            </Stack.Navigator>
+          )}
+        </ImageBackground>
+      </NavigationContainer>
+    </>
   );
 }
 
+export default App;
+
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  image: {
+    flex: 1,
+    resizeMode: 'cover',
+    backgroundColor: 'black',
   },
 });
 
-export default App;
+// meteo_url = https://api.open-meteo.com/v1/forecast?latitude=30.3912&longitude=-9.51614733&daily=weathercode,temperature_2m_max,sunrise,sunset,windspeed_10m_max&current_weather=true&timezone=auto
